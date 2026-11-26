@@ -1,0 +1,208 @@
+<mvc:View controllerName="zgrnobd.ext.view.Main"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:core="sap.ui.core"
+    xmlns:f="sap.ui.layout.form"
+    xmlns="sap.m">
+
+    <Page id="page" title="GRN against Outbound Delivery">
+        <content>
+
+            <!-- ================= SELECTION SCREEN ================= -->
+            <Panel id="selectionPanel" expandable="true" expanded="true"
+                   headerText="Selection Screen" width="auto" class="sapUiResponsiveMargin">
+                <content>
+                    <f:SimpleForm id="selectionForm"
+                        editable="true"
+                        layout="ResponsiveGridLayout"
+                        labelSpanXL="12" labelSpanL="12" labelSpanM="12" labelSpanS="12"
+                        adjustLabelSpan="false"
+                        emptySpanXL="0" emptySpanL="0" emptySpanM="0" emptySpanS="0"
+                        columnsXL="4" columnsL="4" columnsM="2"
+                        singleContainerFullSize="false">
+                        <f:content>
+
+                            <!-- ===== Column 1 ===== -->
+                            <core:Title id="titleCol1" text="Document Details"/>
+
+                            <Label id="lblDocDate" text="Document Date" required="true"/>
+                            <DatePicker id="dpDocDate" value="{
+                                path: 'local>/selection/documentDate',
+                                type: 'sap.ui.model.type.Date',
+                                formatOptions: {pattern: 'MMM dd, yyyy'}
+                            }"/>
+
+                            <Label id="lblPostDate" text="Posting Date" required="true"/>
+                            <DatePicker id="dpPostDate" value="{
+                                path: 'local>/selection/postingDate',
+                                type: 'sap.ui.model.type.Date',
+                                formatOptions: {pattern: 'MMM dd, yyyy'}
+                            }"/>
+
+                            <Label id="lblObd" text="Outbound Delivery Number" required="true"/>
+                            <Input id="inputObd"
+                                   value="{local>/selection/obdNumber}"
+                                   placeholder="Enter Outbound Delivery"
+                                   showValueHelp="true"
+                                   valueHelpRequest=".onObdValueHelp"
+                                   change=".onObdChange"/>
+
+                            <Label id="lblPo" text="PO Number"/>
+                            <Input id="inputPo" value="{local>/selection/poNumber}" editable="false"/>
+
+                            <!-- ===== Column 2 ===== -->
+                            <core:Title id="titleCol2" text="Delivery Details"/>
+
+                            <Label id="lblDelNote" text="Delivery Note"/>
+                            <Input id="inputDelNote" value="{local>/selection/deliveryNote}"
+                                   maxLength="16" placeholder="Enter delivery note"/>
+
+                            <Label id="lblSloc" text="To Storage Location" required="true"/>
+                            <Input id="inputSloc" value="{local>/selection/sloc}"
+                                   maxLength="4"
+                                   showValueHelp="true"
+                                   valueHelpRequest=".onSlocValueHelp"
+                                   placeholder="Select To Sloc"/>
+
+                            <Label id="lblPlant" text="Plant"/>
+                            <Input id="inputPlant" value="{local>/selection/plant}" editable="false"/>
+
+                            <Label id="lblUom" text="UOM"/>
+                            <Input id="inputUom" value="{local>/selection/unit}" editable="false"/>
+
+                            <!-- ===== Column 3 ===== -->
+                            <core:Title id="titleCol3" text="Quantity Summary"/>
+
+                            <Label id="lblRecvQty" text="Received Quantity"/>
+                            <Input id="inputRecvQty" value="{local>/selection/recvQty}" editable="false"/>
+
+                            <Label id="lblScanQty" text="Scanned Quantity"/>
+                            <Input id="inputScanQty" value="{local>/selection/scanQty}" editable="false"/>
+
+                            <Label id="lblRecvBat" text="Received Batches"/>
+                            <Input id="inputRecvBat" value="{local>/selection/recvBatches}" editable="false"/>
+
+                            <Label id="lblScanBat" text="Scanned Batches"/>
+                            <Input id="inputScanBat" value="{local>/selection/scanBatches}" editable="false"/>
+
+                            <!-- ===== Column 4 ===== -->
+                            <core:Title id="titleCol4" text="Additional"/>
+
+                            <Label id="lblShift" text="Shift" required="true"/>
+                            <Select id="selectShift" selectedKey="{local>/selection/shift}">
+                                <core:Item id="shiftItemA" key="A" text="A"/>
+                                <core:Item id="shiftItemB" key="B" text="B"/>
+                            </Select>
+
+                            <Label id="lblRemark" text="Remark"/>
+                            <Input id="inputRemark" value="{local>/selection/remark}"
+                                   maxLength="100" placeholder="Enter remark..."/>
+
+                        </f:content>
+                    </f:SimpleForm>
+                </content>
+            </Panel>
+
+            <!-- ================= SCAN BATCHES ================= -->
+            <Panel id="scanPanel" headerText="Scan Batches" expandable="true" expanded="true"
+                   class="sapUiResponsiveMargin" width="auto">
+                <HBox id="scanBox" alignItems="Center" wrap="Wrap" class="sapUiSmallMarginTop">
+                    <Label id="lblScan" text="Scan Batch:" class="sapUiSmallMarginEnd"
+                           design="Bold" labelFor="batchInput"/>
+                    <Input id="batchInput" placeholder="Enter Batch Number..." width="30rem"
+                           submit=".onAddBatch" class="sapUiSmallMarginEnd"/>
+                    <Button id="btnAdd" text="Add" press=".onAddBatch"
+                            type="Emphasized" icon="sap-icon://add"/>
+                </HBox>
+            </Panel>
+
+            <!-- ================= BATCH DETAILS ================= -->
+            <Panel id="batchPanel" headerText="Batch Details" expandable="true" expanded="true"
+                   class="sapUiResponsiveMargin" width="auto">
+                <Table id="batchesTable"
+                       items="{local>/batches}"
+                       noDataText="Enter an outbound delivery to load its batches."
+                       sticky="ColumnHeaders,HeaderToolbar"
+                       growing="true" growingThreshold="50"
+                       mode="MultiSelect">
+
+                    <headerToolbar>
+                        <OverflowToolbar id="batchToolbar">
+                            <Title id="batchTitle" text="Scanned Items" level="H3"/>
+                            <ToolbarSpacer id="batchSpacer"/>
+                            <Button id="btnExport" text="Export" icon="sap-icon://excel-attachment"
+                                    type="Success" press=".onExportExcel"/>
+                            <Button id="btnDelete" text="Delete" icon="sap-icon://delete"
+                                    type="Reject" press=".onDeleteBatch"
+                                    tooltip="Un-verify the selected batches"/>
+                        </OverflowToolbar>
+                    </headerToolbar>
+
+                    <columns>
+                        <Column id="colSr" width="5rem"><Text id="txtColSr" text="Sr. No."/></Column>
+                        <Column id="colBatch" width="10rem"><Text id="txtColBatch" text="Batch"/></Column>
+                        <Column id="colMat" width="12rem"><Text id="txtColMat" text="Material"/></Column>
+                        <Column id="colDesc" width="18rem"><Text id="txtColDesc" text="Material Description"/></Column>
+                        <Column id="colQty" width="8rem" hAlign="End">
+                            <Text id="txtColQty" text="Quantity"/>
+                            <footer>
+                                <ObjectNumber id="footQty" number="{local>/selection/scanQty}" state="Success"/>
+                            </footer>
+                        </Column>
+                        <Column id="colUom" width="6rem"><Text id="txtColUom" text="UoM"/></Column>
+                        <Column id="colStatus" width="9rem"><Text id="txtColStatus" text="Batch Status"/></Column>
+                    </columns>
+
+                    <items>
+                        <ColumnListItem id="batchItem">
+                            <cells>
+                                <Text id="cellSr" text="{local>srNo}"/>
+                                <Text id="cellBatch" text="{local>batch}"/>
+                                <Text id="cellMat" text="{local>material}"/>
+                                <Text id="cellDesc" text="{local>description}"/>
+                                <Text id="cellQty" text="{local>qty}"/>
+                                <Text id="cellUom" text="{local>uom}"/>
+                                <ObjectStatus id="cellStatus"
+                                    text="{path: 'local>status', formatter: '.formatStatus'}"
+                                    state="{path: 'local>status', formatter: '.formatStatusState'}"/>
+                            </cells>
+                        </ColumnListItem>
+                    </items>
+                </Table>
+            </Panel>
+
+        </content>
+
+        <footer>
+            <OverflowToolbar id="footerToolbar">
+                <ToolbarSpacer id="footerSpacer"/>
+                <Button id="btnNew" text="New" icon="sap-icon://add-document" press=".onNew"/>
+                <Button id="btnSubmit" text="Submit" type="Accept" icon="sap-icon://accept"
+                        press=".onSubmit"/>
+            </OverflowToolbar>
+        </footer>
+
+        <dependents>
+            <!-- F4: Outbound Delivery -->
+            <SelectDialog id="obdDialog" title="Outbound Delivery"
+                          items="{ path: '/ZI_GRN_OBD_HDR', templateShareable: false }"
+                          search=".onObdVHSearch" liveChange=".onObdVHSearch"
+                          confirm=".onObdVHConfirm">
+                <StandardListItem id="obdVHItem"
+                                  title="{DeliveryDocument}"
+                                  description="PO {PurchaseOrder}"
+                                  info="{RecvBatches} batches"/>
+            </SelectDialog>
+
+            <!-- F4: To Storage Location (filtered by plant) -->
+            <SelectDialog id="slocDialog" title="To Storage Location"
+                          items="{ path: '/ZI_STORAGELOCATION_VH', templateShareable: false }"
+                          search=".onSlocVHSearch" liveChange=".onSlocVHSearch"
+                          confirm=".onSlocVHConfirm">
+                <StandardListItem id="slocVHItem"
+                                  title="{StorageLocation}"
+                                  description="{StorageLocationName}"
+                                  info="{Plant}"/>
+            </SelectDialog>
+        </dependents>
+    </Page>
+</mvc:View>
