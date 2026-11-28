@@ -9,29 +9,40 @@ sap.ui.define([
     "sap/ui/export/Spreadsheet",
     "sap/ui/export/library"
 ], function (PageController, JSONModel, Filter, FilterOperator, DateFormat,
-             MessageToast, MessageBox, Spreadsheet, exportLibrary) {
+    MessageToast, MessageBox, Spreadsheet, exportLibrary) {
     "use strict";
 
     return PageController.extend("zgrnobd.ext.view.Main", {
 
         /* ==========================================
-         * INIT  (local JSON model, same idea as 261E)
+         * INIT
+         * mode: ""  = nothing loaded
+         *       "OBD" = outbound delivery entered
+         *       "INV" = invoice entered (many OBDs)
          * ======================================== */
         onInit: function () {
             PageController.prototype.onInit.apply(this, arguments);
 
             var oLocalModel = new JSONModel({
+                mode: "",
                 selection: this._emptySelection(),
+                obds: [],
                 batches: []
             });
             this.getView().setModel(oLocalModel, "local");
+
+            // when user clicks / focuses the batch input -> check header first
+            this.byId("batchInput").addEventDelegate({
+                onfocusin: this._onBatchFocusIn
+            }, this);
         },
 
         _emptySelection: function () {
             return {
                 documentDate: new Date(),
                 postingDate: new Date(),
-                obdNumber: "",
+                refNumber: "",          // OBD or Invoice typed by the user
+                invoiceNumber: "",
                 poNumber: "",
                 deliveryNote: "",
                 sloc: "",
@@ -49,15 +60,14 @@ sap.ui.define([
         /* ==========================================
          * HELPERS
          * ======================================== */
-        // "2026-11-23" -> Date (local time, no timezone shift)
         _toDate: function (sDate) {
             if (!sDate) { return new Date(); }
             var a = String(sDate).slice(0, 10).split("-");
             return new Date(Number(a[0]), Number(a[1]) - 1, Number(a[2]));
         },
 
-        // delivery numbers are 10 chars with leading zeros in SAP
-        _padObd: function (s) {
+        // OBD and Invoice numbers are 10 chars with leading zeros in SAP
+        _padNumber: function (s) {
             s = (s || "").trim();
             return /^\d+$/.test(s) ? s.padStart(10, "0") : s.toUpperCase();
         },
@@ -66,142 +76,240 @@ sap.ui.define([
             return String(s || "").trim().toUpperCase().replace(/^0+/, "");
         },
 
-        _focusScan: function () {
-            var oInput = this.byId("batchInput");
+        _focusControl: function (sId) {
+            var oCtrl = this.byId(sId);
             setTimeout(function () {
-                if (oInput) { oInput.focus(); }
+                if (oCtrl) { oCtrl.focus(); }
             }, 100);
         },
 
-        /* ==========================================
-         * OUTBOUND DELIVERY - F4 and change
-         * ======================================== */
-        onObdValueHelp: function () {
-            this.byId("obdDialog").open();
+        _focusScan: function () {
+            this._focusControl("batchInput");
         },
 
-        onObdVHSearch: function (oEvent) {
+        // after load: go to Sloc if it is empty, otherwise to scan field
+        _focusAfterLoad: function () {
+            var sSloc = this.getView().getModel("local").getProperty("/selection/sloc");
+            this._focusControl(sSloc ? "batchInput" : "inputSloc");
+        },
+
+        /* ==========================================
+         * HEADER VALIDATION
+         * Marks missing fields red, shows one message,
+         * focuses the first missing field.
+         * returns true when header is complete.
+         * ======================================== */
+        _validateHeader: function () {
+            var that = this;
+            var oLocal = this.getView().getModel("local");
+            var oSel = oLocal.getProperty("/selection");
+            var bLoaded = !!oLocal.getProperty("/mode");
+
+            var aChecks = [
+                { id: "dpDocDate", ok: !!oSel.documentDate, text: "Document Date" },
+                { id: "dpPostDate", ok: !!oSel.postingDate, text: "Posting Date" },
+                {
+                    id: "inputRef", ok: !!oSel.refNumber && bLoaded,
+                    text: "OBD / Invoice Number (valid number)"
+                },
+                { id: "inputSloc", ok: !!oSel.sloc, text: "To Storage Location" },
+                { id: "selectShift", ok: !!oSel.shift, text: "Shift" }
+            ];
+
+            var aMissing = [];
+            aChecks.forEach(function (c) {
+                that.byId(c.id).setValueState(c.ok ? "None" : "Error");
+                if (!c.ok) { aMissing.push(c); }
+            });
+
+            if (aMissing.length === 0) { return true; }
+
+            if (!this._bMsgOpen) {
+                this._bMsgOpen = true;
+                MessageBox.error(
+                    "Please fill the header details first:\n\n- " +
+                    aMissing.map(function (c) { return c.text; }).join("\n- "), {
+                    onClose: function () {
+                        // delay so the dialog's focus-restore does not re-trigger the check
+                        setTimeout(function () {
+                            that._bMsgOpen = false;
+                            that.byId(aMissing[0].id).focus();
+                        }, 200);
+                    }
+                });
+            }
+            return false;
+        },
+
+        _onBatchFocusIn: function () {
+            if (this._bMsgOpen) { return; }
+            this._validateHeader();
+        },
+
+        /* ==========================================
+         * OBD / INVOICE - F4 and change
+         * ======================================== */
+        onRefValueHelp: function () {
+            this.byId("refDialog").open();
+        },
+
+        onRefVHSearch: function (oEvent) {
             var sValue = oEvent.getParameter("value");
             var aFilters = [];
             if (sValue) {
-                aFilters.push(new Filter("DeliveryDocument", FilterOperator.Contains, sValue));
+                aFilters.push(new Filter({
+                    filters: [
+                        new Filter("DeliveryDocument", FilterOperator.Contains, sValue),
+                        new Filter("BillingDocument", FilterOperator.Contains, sValue),
+                        new Filter("PurchaseOrder", FilterOperator.Contains, sValue)
+                    ],
+                    and: false
+                }));
             }
             oEvent.getSource().getBinding("items").filter(aFilters);
         },
 
-        onObdVHConfirm: function (oEvent) {
+        onRefVHConfirm: function (oEvent) {
             var oSelectedItem = oEvent.getParameter("selectedItem");
             if (oSelectedItem) {
-                this._setObd(oSelectedItem.getTitle());
+                this._loadReference(oSelectedItem.getTitle());
             }
         },
 
-        onObdChange: function () {
-            var sObd = this.getView().getModel("local").getProperty("/selection/obdNumber");
-            if (!sObd || !sObd.trim()) {
+        onRefChange: function () {
+            var sRef = this.getView().getModel("local").getProperty("/selection/refNumber");
+            if (!sRef || !sRef.trim()) {
+                this._sLastRef = "";
                 this._clearDelivery();
                 return;
             }
-            this._setObd(sObd);
-        },
-
-        _setObd: function (sObd) {
-            var sPadded = this._padObd(sObd);
-            this.getView().getModel("local").setProperty("/selection/obdNumber", sPadded);
-            this._loadDelivery(sPadded);
+            this._loadReference(sRef);
         },
 
         _clearDelivery: function () {
             var oLocal = this.getView().getModel("local");
+            oLocal.setProperty("/mode", "");
             oLocal.setProperty("/selection/poNumber", "");
+            oLocal.setProperty("/selection/invoiceNumber", "");
             oLocal.setProperty("/selection/plant", "");
             oLocal.setProperty("/selection/unit", "");
             oLocal.setProperty("/batches", []);
             this._recalc();
         },
 
-        _loadDelivery: function (sObd) {
+        _requestHeaders: function (aFilters) {
+            var oBinding = this.getView().getModel().bindList("/ZI_GRN_OBD_HDR", null, null, aFilters, {
+                "$select": "DeliveryDocument,BillingDocument,PurchaseOrder,Unit,DocumentDate,ReceivingPlant"
+            });
+            return oBinding.requestContexts(0, 200).then(function (aContexts) {
+                return aContexts.map(function (c) { return c.getObject(); });
+            });
+        },
+
+        /* Try as OBD first; if not found, try as Invoice */
+        _loadReference: async function (sRef) {
             var oView = this.getView();
-            var oModel = oView.getModel();
             var oLocal = oView.getModel("local");
+            var sPadded = this._padNumber(sRef);
 
-            var oBinding = oModel.bindList("/ZI_GRN_OBD_HDR", null, null,
-                [new Filter("DeliveryDocument", FilterOperator.EQ, sObd)], {
-                    "$select": "DeliveryDocument,PurchaseOrder,Unit,DocumentDate,ReceivingPlant"
-                });
-
+            oLocal.setProperty("/selection/refNumber", sPadded);
             oView.setBusy(true);
-            return oBinding.requestContexts(0, 1).then(function (aContexts) {
-                if (aContexts.length === 0) {
-                    this._clearDelivery();
-                    MessageBox.error("Outbound delivery " + sObd +
-                        " not found, has no batch items or is already fully received.");
-                    return null;
+
+            try {
+                var sMode = "OBD";
+                var aHdr = await this._requestHeaders(
+                    [new Filter("DeliveryDocument", FilterOperator.EQ, sPadded)]);
+
+                if (aHdr.length === 0) {
+                    sMode = "INV";
+                    aHdr = await this._requestHeaders(
+                        [new Filter("BillingDocument", FilterOperator.EQ, sPadded)]);
                 }
 
-                var oH = aContexts[0].getObject();
-                oLocal.setProperty("/selection/poNumber", oH.PurchaseOrder);
+                if (aHdr.length === 0) {
+                    this._clearDelivery();
+                    MessageBox.error("OBD / Invoice " + sPadded +
+                        " not found, has no batch items or is already fully received.");
+                    return;
+                }
+
+                // unique OBDs and POs
+                var aObds = [], aPos = [];
+                aHdr.forEach(function (h) {
+                    if (aObds.indexOf(h.DeliveryDocument) < 0) { aObds.push(h.DeliveryDocument); }
+                    if (h.PurchaseOrder && aPos.indexOf(h.PurchaseOrder) < 0) { aPos.push(h.PurchaseOrder); }
+                });
+
+                var oH = aHdr[0];
+                oLocal.setProperty("/mode", sMode);
+                oLocal.setProperty("/selection/poNumber", aPos.length > 1 ? "Multiple" : (aPos[0] || ""));
+                oLocal.setProperty("/selection/invoiceNumber",
+                    sMode === "INV" ? sPadded : (oH.BillingDocument || ""));
                 oLocal.setProperty("/selection/plant", oH.ReceivingPlant);
                 oLocal.setProperty("/selection/unit", oH.Unit);
                 if (oH.DocumentDate) {
                     oLocal.setProperty("/selection/documentDate", this._toDate(oH.DocumentDate));
                 }
 
-                // default delivery note = delivery number (user can change it)
-                var sNote = oLocal.getProperty("/selection/deliveryNote");
-                if (!sNote || sNote === this._sLastObd) {
-                    oLocal.setProperty("/selection/deliveryNote", sObd);
-                }
-                this._sLastObd = sObd;
+                // Delivery Note is NOT auto-filled any more - user enters it manually
+                this._sLastRef = sPadded;
 
-                return this._loadBatches(sObd);
-            }.bind(this)).catch(function (oError) {
-                MessageBox.error("Error fetching delivery details: " + (oError.message || ""));
-            }).finally(function () {
+                await this._loadBatches(aObds, sMode, sPadded);
+            } catch (oError) {
+                MessageBox.error("Error fetching details: " + (oError.message || ""));
+            } finally {
                 oView.setBusy(false);
-            });
+            }
         },
 
-        // all OPEN batches of the delivery, status blank until scanned
-        _loadBatches: function (sObd) {
+        // all OPEN batches of the OBD(s), status blank until scanned
+        _loadBatches: function (aObds, sMode, sRef) {
             var oLocal = this.getView().getModel("local");
             var oModel = this.getView().getModel();
 
             var aFilters = [
-                new Filter("DeliveryDocument", FilterOperator.EQ, sObd),
+                new Filter({
+                    filters: aObds.map(function (d) {
+                        return new Filter("DeliveryDocument", FilterOperator.EQ, d);
+                    }),
+                    and: false
+                }),
                 new Filter("AlreadyReceived", FilterOperator.NE, "X")
             ];
+
             var oBinding = oModel.bindList("/ZI_GRN_OBD_BATCH", null, null, aFilters, {
                 "$select": "DeliveryDocument,DeliveryDocumentItem,PurchaseOrder,PurchaseOrderItem," +
-                           "ReceivingPlant,Material,ProductDescription,Batch,Qty,Unit,AlreadyReceived",
-                "$orderby": "DeliveryDocumentItem"
+                    "ReceivingPlant,Material,ProductDescription,Batch,Qty,Unit,AlreadyReceived",
+                "$orderby": "DeliveryDocument,DeliveryDocumentItem"
             });
 
             return oBinding.requestContexts(0, 5000).then(function (aContexts) {
                 var aRows = aContexts.map(function (oContext, i) {
                     var o = oContext.getObject();
                     return {
-                        srNo:        i + 1,
-                        obdItem:     o.DeliveryDocumentItem,
-                        poNumber:    o.PurchaseOrder,
-                        poItem:      o.PurchaseOrderItem,
-                        plant:       o.ReceivingPlant,
-                        batch:       o.Batch,
-                        material:    o.Material,
+                        srNo: i + 1,
+                        obd: o.DeliveryDocument,
+                        obdItem: o.DeliveryDocumentItem,
+                        poNumber: o.PurchaseOrder,
+                        poItem: o.PurchaseOrderItem,
+                        plant: o.ReceivingPlant,
+                        batch: o.Batch,
+                        material: o.Material,
                         description: o.ProductDescription,
-                        qty:         o.Qty,
-                        uom:         o.Unit,
-                        status:      ""
+                        qty: o.Qty,
+                        uom: o.Unit,
+                        status: ""
                     };
                 });
                 oLocal.setProperty("/batches", aRows);
                 this._recalc();
 
                 if (aRows.length === 0) {
-                    MessageBox.warning("No open batches found for outbound delivery " + sObd + ".");
+                    MessageBox.warning("No open batches found for " +
+                        (sMode === "INV" ? "invoice " : "outbound delivery ") + sRef + ".");
                 } else {
                     MessageToast.show("Scanner Ready: " + aRows.length + " batches to receive.");
-                    this._focusScan();
+                    this._focusAfterLoad();
                 }
             }.bind(this));
         },
@@ -212,7 +320,7 @@ sap.ui.define([
         onSlocValueHelp: function () {
             var sPlant = this.getView().getModel("local").getProperty("/selection/plant");
             if (!sPlant) {
-                MessageToast.show("Please enter the outbound delivery first");
+                MessageToast.show("Please enter the outbound delivery / invoice first");
                 return;
             }
             var oDialog = this.byId("slocDialog");
@@ -244,6 +352,7 @@ sap.ui.define([
             var oSelectedItem = oEvent.getParameter("selectedItem");
             if (oSelectedItem) {
                 this.getView().getModel("local").setProperty("/selection/sloc", oSelectedItem.getTitle());
+                this.byId("inputSloc").setValueState("None");
             }
         },
 
@@ -256,10 +365,9 @@ sap.ui.define([
             var oLocal = this.getView().getModel("local");
             var sInputValue = oInput.getValue().trim();
 
-            if (!oLocal.getProperty("/selection/obdNumber")) {
-                MessageBox.error("Enter the outbound delivery number first.");
-                return;
-            }
+            // header must be complete before any batch is added
+            if (!this._validateHeader()) { return; }
+
             if (!sInputValue) {
                 MessageToast.show("Please enter or scan a batch.");
                 this._focusScan();
@@ -276,17 +384,23 @@ sap.ui.define([
                 if (!sScanned) { return; }
 
                 // exact match first, then ignore leading zeros
-                var oRow = aRows.find(function (r) { return r.batch === sScanned; }) ||
-                           aRows.find(function (r) {
-                               return that._stripZeros(r.batch) === that._stripZeros(sScanned);
-                           });
+                var aMatch = aRows.filter(function (r) { return r.batch === sScanned; });
+                if (aMatch.length === 0) {
+                    aMatch = aRows.filter(function (r) {
+                        return that._stripZeros(r.batch) === that._stripZeros(sScanned);
+                    });
+                }
 
+                if (aMatch.length === 0) {
+                    aNotInDelivery.push(sScanned);
+                    return;
+                }
+                // first not-yet-verified row (same batch can exist in 2 OBDs)
+                var oRow = aMatch.find(function (r) { return r.status !== "V"; });
                 if (!oRow) {
-                    aNotInDelivery.push(sScanned);          // SCENARIO 2
-                } else if (oRow.status === "V") {
                     aDuplicates.push(sScanned);
                 } else {
-                    oRow.status = "V";                      // Verified
+                    oRow.status = "V";
                     iAdded++;
                 }
             });
@@ -294,13 +408,14 @@ sap.ui.define([
             oLocal.setProperty("/batches", aRows);
             this._recalc();
 
+            var sWhat = oLocal.getProperty("/mode") === "INV" ? "invoice " : "outbound delivery ";
             var sMessage = "";
             if (iAdded > 0) {
                 sMessage += "Verified " + iAdded + " batch(es). ";
             }
             if (aNotInDelivery.length > 0) {
-                sMessage += "\nBatch not part of outbound delivery " +
-                    oLocal.getProperty("/selection/obdNumber") + ": " + aNotInDelivery.join(", ") + ".";
+                sMessage += "\nBatch not part of " + sWhat +
+                    oLocal.getProperty("/selection/refNumber") + ": " + aNotInDelivery.join(", ") + ".";
             }
             if (aDuplicates.length > 0) {
                 sMessage += "\nBatch already scanned: " + aDuplicates.join(", ") + ".";
@@ -342,23 +457,48 @@ sap.ui.define([
         },
 
         /* ==========================================
-         * TOTALS  (Received = delivery, Scanned = verified)
+         * TOTALS + per-OBD summary table
          * ======================================== */
         _recalc: function () {
             var oLocal = this.getView().getModel("local");
             var aRows = oLocal.getProperty("/batches") || [];
             var fRecv = 0, fScan = 0, iScan = 0;
+            var aObds = [], mObd = {};
 
             aRows.forEach(function (r, i) {
                 r.srNo = i + 1;
-                fRecv += parseFloat(r.qty) || 0;
+                var fQty = parseFloat(r.qty) || 0;
+                fRecv += fQty;
+
+                var oO = mObd[r.obd];
+                if (!oO) {
+                    oO = mObd[r.obd] = {
+                        obd: r.obd, po: r.poNumber, plant: r.plant,
+                        recvQty: 0, scanQty: 0, recvBatches: 0, scanBatches: 0
+                    };
+                    aObds.push(oO);
+                }
+                oO.recvQty += fQty;
+                oO.recvBatches++;
+
                 if (r.status === "V") {
-                    fScan += parseFloat(r.qty) || 0;
+                    fScan += fQty;
                     iScan++;
+                    oO.scanQty += fQty;
+                    oO.scanBatches++;
                 }
             });
 
+            aObds.forEach(function (o, i) {
+                o.srNo = i + 1;
+                o.recvQtyText = o.recvQty.toFixed(3);
+                o.scanQtyText = o.scanQty.toFixed(3);
+                o.status = o.scanBatches === o.recvBatches ? "Verified"
+                    : (o.scanBatches > 0 ? "In Progress" : "Pending");
+            });
+
             oLocal.setProperty("/batches", aRows);
+            oLocal.setProperty("/obds", aObds);
             oLocal.setProperty("/selection/recvBatches", aRows.length);
             oLocal.setProperty("/selection/scanBatches", iScan);
             oLocal.setProperty("/selection/recvQty", fRecv.toFixed(3));
@@ -372,115 +512,176 @@ sap.ui.define([
             var oLocal = this.getView().getModel("local");
             var oSel = oLocal.getProperty("/selection");
 
-            if (!oSel.obdNumber || !oSel.sloc || !oSel.postingDate || !oSel.documentDate || !oSel.shift) {
-                MessageBox.error("Please fill in all mandatory fields (dates, outbound delivery, to storage location, shift).");
-                return;
-            }
+            if (!this._validateHeader()) { return; }
+
             if (oSel.scanBatches === 0) {
                 MessageBox.error("Please scan at least one batch before submitting.");
                 return;
             }
 
-            // SCENARIO 1: fewer batches scanned than in the delivery -> NOTIFICATION
+            // SCENARIO 1: fewer batches scanned than available -> NOTIFICATION
             if (oSel.scanBatches < oSel.recvBatches) {
-                MessageBox.confirm(
-                    "Notification: only " + oSel.scanBatches + " of " + oSel.recvBatches +
-                    " batches are scanned.\nThe remaining batches stay open for a later GRN.\n\n" +
-                    "Do you want to post now?", {
-                        title: "Notification",
-                        actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
-                        emphasizedAction: MessageBox.Action.OK,
-                        onClose: function (sAction) {
-                            if (sAction === MessageBox.Action.OK) { this._post(); }
-                        }.bind(this)
-                    });
+                var aSkipped = (oLocal.getProperty("/obds") || [])
+                    .filter(function (o) { return o.scanBatches === 0; })
+                    .map(function (o) { return o.obd; });
+
+                var sText = "Notification: only " + oSel.scanBatches + " of " + oSel.recvBatches +
+                    " batches are scanned.\nThe remaining batches stay open for a later GRN.\n\n";
+                if (aSkipped.length > 0) {
+                    sText += "No GRN will be posted for OBD: " + aSkipped.join(", ") + "\n\n";
+                }
+                sText += "Do you want to post now?";
+
+                MessageBox.confirm(sText, {
+                    title: "Notification",
+                    actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
+                    emphasizedAction: MessageBox.Action.OK,
+                    onClose: function (sAction) {
+                        if (sAction === MessageBox.Action.OK) { this._post(); }
+                    }.bind(this)
+                });
                 return;
             }
             this._post();
         },
 
-        _post: function () {
+        /* One GRN (ZC_GRN_HD) per OBD that has at least one verified batch */
+        _post: async function () {
             var oView = this.getView();
             var oLocal = oView.getModel("local");
             var oODataModel = oView.getModel();
             var oSel = oLocal.getProperty("/selection");
             var aRows = oLocal.getProperty("/batches") || [];
-
             var oDateFormat = DateFormat.getDateInstance({ pattern: "yyyy-MM-dd" });
 
-            // header + ALL rows (verified and blank) -> both stored in the custom tables
-            var oPayload = {
-                "ObdNumber":    oSel.obdNumber,
-                "PoNumber":     oSel.poNumber,
-                "DeliveryNote": oSel.deliveryNote || oSel.obdNumber,
-                "DocumentDate": oDateFormat.format(oSel.documentDate),
-                "PostingDate":  oDateFormat.format(oSel.postingDate),
-                "Plant":        oSel.plant,
-                "StorlocTo":    oSel.sloc,
-                "Shift":        oSel.shift,
-                "Remark":       oSel.remark || "",
-                "Unit":         oSel.unit,
-                "_Item": aRows.map(function (r) {
-                    return {
-                        "ObdNumber":  oSel.obdNumber,
-                        "ObdItem":    r.obdItem,
-                        "PoNumber":   r.poNumber,
-                        "PoItem":     r.poItem,
-                        "Plant":      r.plant,
-                        "Batch":      r.batch,
-                        "Material":   r.material,
-                        "MatDes":     r.description,
-                        "ScanStatus": r.status,
-                        "Qty":        String(r.qty),
-                        "Unit":       r.uom
-                    };
-                })
-            };
+            var aObdList = (oLocal.getProperty("/obds") || [])
+                .filter(function (o) { return o.scanBatches > 0; })
+                .map(function (o) { return o.obd; });
 
+            var aDone = [];
             oView.setBusy(true);
 
-            var oListBinding = oODataModel.bindList("/ZC_GRN_HD");
-            var oContext = oListBinding.create(oPayload);
+            try {
+                // for (var i = 0; i < aObdList.length; i++) {
+                //     var sObd = aObdList[i];                         
+                //     var sObdInt = this._padNumber(sObd);            
+                //     var aObdRows = aRows.filter(function (r) { return r.obd === sObd; });
+                //     var oFirst = aObdRows[0];    
 
-            oContext.created().then(function () {
-                oView.setBusy(false);
+                //     // header + ALL rows of this OBD (verified and blank)
+                //     var oPayload = {
+                //         "ObdNumber":    sObd,
+                //         "PoNumber":     oFirst.poNumber,
+                //         "DeliveryNote": oSel.deliveryNote || sObd,   
+                //         "DocumentDate": oDateFormat.format(oSel.documentDate),
+                //         "PostingDate":  oDateFormat.format(oSel.postingDate),
+                //         "Plant":        oFirst.plant,
+                //         "StorlocTo":    oSel.sloc,
+                //         "Shift":        oSel.shift,
+                //         "Remark":       oSel.remark || "",
+                //         "Unit":         oFirst.uom,
+                //         "_Item": aObdRows.map(function (r) {
+                //             return {
+                //                 "ObdNumber":  sObd,
+                //                 "ObdItem":    r.obdItem,
+                //                 "PoNumber":   r.poNumber,
+                //                 "PoItem":     r.poItem,
+                //                 "Plant":      r.plant,
+                //                 "Batch":      r.batch,
+                //                 "Material":   r.material,
+                //                 "MatDes":     r.description,
+                //                 "ScanStatus": r.status,
+                //                 "Qty":        String(r.qty),
+                //                 "Unit":       r.uom
+                //             };
+                //         })
+                //     };
 
-                var sStatus = oContext.getProperty("Status");
-                var sMessage = oContext.getProperty("Mess");
-                var sMatDoc = oContext.getProperty("MatDoc");
-                var sMatYear = oContext.getProperty("MatDocYear");
+                for (var i = 0; i < aObdList.length; i++) {
+                    var sObd = aObdList[i];
+                    var sObdInt = this._padNumber(sObd);
+                    var aObdRows = aRows.filter(function (r) { return r.obd === sObd; });
+                    var oFirst = aObdRows[0];
 
-                if (sStatus === "S" && sMatDoc) {
-                    MessageBox.success(
-                        "GRN posted successfully!\n\n" +
-                        "Material Document: " + sMatDoc + " / " + sMatYear + "\n\n" + sMessage, {
-                            onClose: function () {
-                                this._resetScreen();
-                            }.bind(this)
-                        });
-                } else {
-                    MessageBox.error(sMessage || "Submission failed: material document was not created.");
+                    var oPayload = {
+                        "ObdNumber": sObdInt,
+                        "PoNumber": this._padNumber(oFirst.poNumber),
+                        "DeliveryNote": oSel.deliveryNote || sObdInt,
+                        "DocumentDate": oDateFormat.format(oSel.documentDate),
+                        "PostingDate": oDateFormat.format(oSel.postingDate),
+                        "Plant": oFirst.plant,
+                        "StorlocTo": oSel.sloc,
+                        "Shift": oSel.shift,
+                        "Remark": oSel.remark || "",
+                        "Unit": oFirst.uom,
+                        "_Item": aObdRows.map(function (r) {
+                            return {
+                                "ObdNumber": sObdInt,
+                                "ObdItem": String(r.obdItem).padStart(6, "0"),
+                                "PoNumber": this._padNumber(r.poNumber),
+                                "PoItem": String(r.poItem).padStart(5, "0"),
+                                "Plant": r.plant,
+                                "Batch": r.batch,
+                                "Material": r.material, 
+                                "MatDes": r.description,
+                                "ScanStatus": r.status,
+                                "Qty": String(r.qty),
+                                "Unit": r.uom
+                            };
+                        }.bind(this))
+                    };
+
+                    var oContext = oODataModel.bindList("/ZC_GRN_HD").create(oPayload);
+                    await oContext.created();
+
+                    var sStatus = oContext.getProperty("Status");
+                    var sMessage = oContext.getProperty("Mess");
+                    var sMatDoc = oContext.getProperty("MatDoc");
+                    var sMatYear = oContext.getProperty("MatDocYear");
+
+                    if (sStatus !== "S" || !sMatDoc) {
+                        throw new Error("OBD " + sObd + ": " +
+                            (sMessage || "material document was not created."));
+                    }
+                    aDone.push("OBD " + sObd + "  ->  Mat. Doc " + sMatDoc + " / " + sMatYear);
                 }
-            }.bind(this)).catch(function (oError) {
+
+                oView.setBusy(false);
+                MessageBox.success("GRN posted successfully!\n\n" + aDone.join("\n"), {
+                    onClose: function () { this._resetScreen(); }.bind(this)
+                });
+
+            } catch (oError) {
                 oView.setBusy(false);
                 console.error("Submission Error:", oError);
-                MessageBox.error("Submission failed: \n\n" + (oError.message || "Failed to post data to the backend."));
-            });
+
+                var sErr = "Submission failed:\n\n" + (oError.message || "Failed to post data to the backend.");
+                if (aDone.length > 0) {
+                    sErr += "\n\nAlready posted:\n" + aDone.join("\n") +
+                        "\n\nScreen is reloaded - remaining items are shown again.";
+                    MessageBox.error(sErr);
+                    this._loadReference(oSel.refNumber);   // posted OBDs drop out of the list
+                } else {
+                    MessageBox.error(sErr);
+                }
+            }
         },
 
         /* ==========================================
          * NEW
          * ======================================== */
         _resetScreen: function () {
-            this._sLastObd = "";
+            this._sLastRef = "";
             this.getView().getModel("local").setData({
+                mode: "",
                 selection: this._emptySelection(),
+                obds: [],
                 batches: []
             });
-            var oInput = this.byId("inputObd");
-            if (oInput) {
-                setTimeout(function () { oInput.focus(); }, 100);
-            }
+            ["dpDocDate", "dpPostDate", "inputRef", "inputSloc", "selectShift"].forEach(function (sId) {
+                this.byId(sId).setValueState("None");
+            }.bind(this));
+            this._focusControl("inputRef");
         },
 
         onNew: function () {
@@ -517,24 +718,28 @@ sap.ui.define([
         _createColumnConfig: function () {
             var EdmType = exportLibrary.EdmType;
             return [
-                { label: "Sr. No.",              property: "srNo",        type: EdmType.Number },
-                { label: "Batch",                property: "batch",       type: EdmType.String },
-                { label: "Material",             property: "material",    type: EdmType.String },
+                { label: "Sr. No.", property: "srNo", type: EdmType.Number },
+                { label: "OBD Number", property: "obd", type: EdmType.String },
+                { label: "Batch", property: "batch", type: EdmType.String },
+                { label: "Material", property: "material", type: EdmType.String },
                 { label: "Material Description", property: "description", type: EdmType.String },
-                { label: "Quantity",             property: "qty",         type: EdmType.Number },
-                { label: "UoM",                  property: "uom",         type: EdmType.String },
-                { label: "Batch Status",         property: "statusText",  type: EdmType.String }
+                { label: "Quantity", property: "qty", type: EdmType.Number },
+                { label: "UoM", property: "uom", type: EdmType.String },
+                { label: "Batch Status", property: "statusText", type: EdmType.String }
             ];
         },
 
         /* ==========================================
-         * FORMATTERS - Batch Status column
+         * FORMATTERS
          * ======================================== */
         formatStatus: function (s) {
             return s === "V" ? "Verified" : "";
         },
         formatStatusState: function (s) {
             return s === "V" ? "Success" : "None";
+        },
+        formatObdState: function (s) {
+            return s === "Verified" ? "Success" : (s === "In Progress" ? "Warning" : "None");
         }
     });
 });

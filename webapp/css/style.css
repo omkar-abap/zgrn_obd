@@ -1,0 +1,83 @@
+/* ===== Page ===== */
+.grnPage > section { background: #eef3fa; }
+
+/* ===== Banner ===== */
+.grnBanner {
+    background: linear-gradient(90deg, #c2dcfa, #d9e9fc);
+    padding: .5rem 1.2rem;
+    min-height: 3rem;
+    border-bottom: 1px solid #aecbee;
+}
+.grnBannerIcon { border-radius: .6rem; margin-right: .8rem; }
+.grnBannerTitle,
+.grnBannerTitle.sapMTitle { color: #16283d !important; font-size: 1.25rem; font-weight: 700; }
+
+/* ===== Panels (white cards) ===== */
+.grnPanel {
+    background: #ffffff;
+    border-radius: .9rem;
+    box-shadow: 0 1px 4px rgba(15, 40, 80, .12);
+    overflow: hidden;
+}
+.grnPanel .sapMPanelHdr { font-weight: 700; color: #16283d; }
+.grnSelPanel .sapMPanelContent { background: #f4f7fb !important; padding: .8rem; }
+.grnPanel .sapMListTblHeaderCell { background: #f3f6fa; font-weight: 700; }
+
+/* ===== Cards row ===== */
+.grnCards { gap: 1rem; align-items: stretch; }
+.grnCard {
+    background: #ffffff;
+    border-radius: .9rem;
+    padding: 1rem 1.1rem;
+    box-shadow: 0 1px 4px rgba(15, 40, 80, .10);
+    flex: 1 1 15rem;
+    min-width: 15rem;
+    box-sizing: border-box;
+}
+.grnCardWide { flex: 1.3 1 19rem; }
+
+.grnCardHead { margin-bottom: .8rem; }
+.grnCardIcon { color: #1f6fd6; margin-right: .5rem; }
+.grnCardTitle { font-weight: 700; font-size: 1rem; color: #16283d; }
+
+/* ===== Fields ===== */
+.grnField { margin-bottom: .55rem; }
+.grnCard .sapMLabel { display: block; font-size: .78rem; color: #55657a; margin-bottom: .15rem; }
+.grnCard .sapMInputBaseContentWrapper { border-radius: .4rem; }
+.grnCard .sapMInputBaseReadonlyWrapper {
+    background: #eceff3 !important;
+    border: none !important;
+    border-radius: .4rem;
+}
+
+/* ===== Two fields on the same row, equal width ===== */
+.grnTwoCol { gap: .8rem; width: 100%; }
+.grnHalf { flex: 1 1 0; min-width: 0; margin-bottom: .55rem; }
+.grnHalf .sapMInputBase,
+.grnHalf .sapMInput { width: 100%; }
+
+/* ===== KPI tiles ===== */
+.grnKpi {
+    gap: .6rem;
+    padding: .4rem .7rem;
+    border-radius: .6rem;
+    margin-bottom: .4rem;
+}
+.grnKpiIcon { border-radius: .5rem; flex: 0 0 auto; }
+.grnKpiValue { font-size: 1.15rem; font-weight: 700; color: #1b2b3f; min-width: 3.5rem; }
+.grnKpiLabel { font-size: .78rem; color: #4a5a6e; }
+.grnKpiBlue   { background: #e3f0ff; }
+.grnKpiGreen  { background: #e2f6e9; }
+.grnKpiOrange { background: #fdeed8; }
+.grnKpiPurple { background: #ece6fb; }
+
+/* ===== Scan bar ===== */
+.grnScanBar {
+    background: linear-gradient(90deg, #d9e9fc, #eaf3ff);
+    border-radius: .9rem;
+    padding: .9rem 1.2rem;
+    gap: .9rem;
+}
+.grnScanIcon { color: #1f4f8f; }
+.grnScanTitle { color: #16283d; font-weight: 700; margin-right: 1rem; }
+.grnScanLabel { color: #16283d; }

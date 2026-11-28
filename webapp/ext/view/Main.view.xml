@@ -1,126 +1,254 @@
 <mvc:View controllerName="zgrnobd.ext.view.Main"
     xmlns:mvc="sap.ui.core.mvc"
     xmlns:core="sap.ui.core"
-    xmlns:f="sap.ui.layout.form"
     xmlns="sap.m">
 
-    <Page id="page" title="GRN against Outbound Delivery">
+    <Page id="page" showHeader="false" class="grnPage">
         <content>
+
+            <!-- ================= BANNER ================= -->
+            <HBox id="banner" alignItems="Center" renderType="Bare" class="grnBanner">
+                <core:Icon id="icoBanner" src="sap-icon://inventory"
+                           size="1.2rem" width="2.4rem" height="2.4rem"
+                           color="#1f4f8f" backgroundColor="#ffffff"
+                           class="grnBannerIcon"/>
+                <Title id="bannerTitle" text="GRN against Outbound Delivery / Invoice"
+                       level="H1" class="grnBannerTitle"/>
+            </HBox>
 
             <!-- ================= SELECTION SCREEN ================= -->
             <Panel id="selectionPanel" expandable="true" expanded="true"
-                   headerText="Selection Screen" width="auto" class="sapUiResponsiveMargin">
+                   headerText="Selection Screen" width="auto"
+                   class="sapUiResponsiveMargin grnPanel grnSelPanel">
                 <content>
-                    <f:SimpleForm id="selectionForm"
-                        editable="true"
-                        layout="ResponsiveGridLayout"
-                        labelSpanXL="12" labelSpanL="12" labelSpanM="12" labelSpanS="12"
-                        adjustLabelSpan="false"
-                        emptySpanXL="0" emptySpanL="0" emptySpanM="0" emptySpanS="0"
-                        columnsXL="4" columnsL="4" columnsM="2"
-                        singleContainerFullSize="false">
-                        <f:content>
+                    <HBox id="cardsRow" renderType="Bare" wrap="Wrap" class="grnCards">
 
-                            <!-- ===== Column 1 ===== -->
-                            <core:Title id="titleCol1" text="Document Details"/>
+                        <!-- ===== Card 1 : Document Details ===== -->
+                        <VBox id="cardDoc" renderType="Bare" class="grnCard">
+                            <HBox id="headDoc" alignItems="Center" class="grnCardHead">
+                                <core:Icon id="icoDoc" src="sap-icon://document-text"
+                                           size="1.2rem" class="grnCardIcon"/>
+                                <Text id="txtHeadDoc" text="Document Details" class="grnCardTitle"/>
+                            </HBox>
 
-                            <Label id="lblDocDate" text="Document Date" required="true"/>
-                            <DatePicker id="dpDocDate" value="{
-                                path: 'local>/selection/documentDate',
-                                type: 'sap.ui.model.type.Date',
-                                formatOptions: {pattern: 'MMM dd, yyyy'}
-                            }"/>
+                            <VBox id="fDocDate" renderType="Bare" class="grnField">
+                                <Label id="lblDocDate" text="Document Date" required="true" labelFor="dpDocDate"/>
+                                <DatePicker id="dpDocDate" value="{
+                                    path: 'local>/selection/documentDate',
+                                    type: 'sap.ui.model.type.Date',
+                                    formatOptions: {pattern: 'MMM dd, yyyy'}
+                                }"/>
+                            </VBox>
 
-                            <Label id="lblPostDate" text="Posting Date" required="true"/>
-                            <DatePicker id="dpPostDate" value="{
-                                path: 'local>/selection/postingDate',
-                                type: 'sap.ui.model.type.Date',
-                                formatOptions: {pattern: 'MMM dd, yyyy'}
-                            }"/>
+                            <VBox id="fPostDate" renderType="Bare" class="grnField">
+                                <Label id="lblPostDate" text="Posting Date" required="true" labelFor="dpPostDate"/>
+                                <DatePicker id="dpPostDate" value="{
+                                    path: 'local>/selection/postingDate',
+                                    type: 'sap.ui.model.type.Date',
+                                    formatOptions: {pattern: 'MMM dd, yyyy'}
+                                }"/>
+                            </VBox>
 
-                            <Label id="lblObd" text="Outbound Delivery Number" required="true"/>
-                            <Input id="inputObd"
-                                   value="{local>/selection/obdNumber}"
-                                   placeholder="Enter Outbound Delivery"
-                                   showValueHelp="true"
-                                   valueHelpRequest=".onObdValueHelp"
-                                   change=".onObdChange"/>
+                            <VBox id="fRef" renderType="Bare" class="grnField">
+                                <Label id="lblRef" text="OBD / Invoice Number" required="true" labelFor="inputRef"/>
+                                <Input id="inputRef"
+                                       value="{local>/selection/refNumber}"
+                                       placeholder="Enter Outbound Delivery or Invoice"
+                                       showValueHelp="true"
+                                       valueHelpRequest=".onRefValueHelp"
+                                       change=".onRefChange"/>
+                            </VBox>
 
-                            <Label id="lblPo" text="PO Number"/>
-                            <Input id="inputPo" value="{local>/selection/poNumber}" editable="false"/>
+                            <!-- PO Number + Invoice Number on the SAME row (only in OBD mode) -->
+                            <HBox id="rowPoInv" renderType="Bare" class="grnTwoCol"
+                                  visible="{= ${local>/mode} === 'OBD' }">
+                                <VBox id="fPo" renderType="Bare" class="grnHalf">
+                                    <Label id="lblPo" text="PO Number" labelFor="inputPo"/>
+                                    <Input id="inputPo" value="{local>/selection/poNumber}" editable="false"/>
+                                </VBox>
+                                <VBox id="fInv" renderType="Bare" class="grnHalf">
+                                    <Label id="lblInv" text="Invoice Number" labelFor="inputInv"/>
+                                    <Input id="inputInv" value="{local>/selection/invoiceNumber}" editable="false"/>
+                                </VBox>
+                            </HBox>
+                        </VBox>
 
-                            <!-- ===== Column 2 ===== -->
-                            <core:Title id="titleCol2" text="Delivery Details"/>
+                        <!-- ===== Card 2 : Delivery Details ===== -->
+                        <VBox id="cardDel" renderType="Bare" class="grnCard">
+                            <HBox id="headDel" alignItems="Center" class="grnCardHead">
+                                <core:Icon id="icoDel" src="sap-icon://shipping-status"
+                                           size="1.2rem" class="grnCardIcon"/>
+                                <Text id="txtHeadDel" text="Delivery Details" class="grnCardTitle"/>
+                            </HBox>
 
-                            <Label id="lblDelNote" text="Delivery Note"/>
-                            <Input id="inputDelNote" value="{local>/selection/deliveryNote}"
-                                   maxLength="16" placeholder="Enter delivery note"/>
+                            <VBox id="fDelNote" renderType="Bare" class="grnField">
+                                <Label id="lblDelNote" text="Delivery Note" labelFor="inputDelNote"/>
+                                <Input id="inputDelNote" value="{local>/selection/deliveryNote}"
+                                       maxLength="16" placeholder="Enter delivery note"/>
+                            </VBox>
 
-                            <Label id="lblSloc" text="To Storage Location" required="true"/>
-                            <Input id="inputSloc" value="{local>/selection/sloc}"
-                                   maxLength="4"
-                                   showValueHelp="true"
-                                   valueHelpRequest=".onSlocValueHelp"
-                                   placeholder="Select To Sloc"/>
+                            <VBox id="fSloc" renderType="Bare" class="grnField">
+                                <Label id="lblSloc" text="To Storage Location" required="true" labelFor="inputSloc"/>
+                                <Input id="inputSloc" value="{local>/selection/sloc}"
+                                       maxLength="4"
+                                       showValueHelp="true"
+                                       valueHelpRequest=".onSlocValueHelp"
+                                       placeholder="Select To Sloc"/>
+                            </VBox>
 
-                            <Label id="lblPlant" text="Plant"/>
-                            <Input id="inputPlant" value="{local>/selection/plant}" editable="false"/>
+                            <!-- Plant + UOM on the SAME row -->
+                            <HBox id="rowPlantUom" renderType="Bare" class="grnTwoCol">
+                                <VBox id="fPlant" renderType="Bare" class="grnHalf">
+                                    <Label id="lblPlant" text="Plant" labelFor="inputPlant"/>
+                                    <Input id="inputPlant" value="{local>/selection/plant}" editable="false"/>
+                                </VBox>
+                                <VBox id="fUom" renderType="Bare" class="grnHalf">
+                                    <Label id="lblUom" text="UOM" labelFor="inputUom"/>
+                                    <Input id="inputUom" value="{local>/selection/unit}" editable="false"/>
+                                </VBox>
+                            </HBox>
+                        </VBox>
 
-                            <Label id="lblUom" text="UOM"/>
-                            <Input id="inputUom" value="{local>/selection/unit}" editable="false"/>
+                        <!-- ===== Card 3 : Overall Summary ===== -->
+                        <VBox id="cardSum" renderType="Bare" class="grnCard grnCardWide">
+                            <HBox id="headSum" alignItems="Center" class="grnCardHead">
+                                <core:Icon id="icoSum" src="sap-icon://bar-chart"
+                                           size="1.2rem" class="grnCardIcon"/>
+                                <Text id="txtHeadSum" class="grnCardTitle"
+                                      text="{= ${local>/mode} === 'INV' ? 'Overall Summary (All OBDs)' : 'Quantity Summary' }"/>
+                            </HBox>
 
-                            <!-- ===== Column 3 ===== -->
-                            <core:Title id="titleCol3" text="Quantity Summary"/>
+                            <HBox id="kpiRecvQty" alignItems="Center" renderType="Bare" class="grnKpi grnKpiBlue">
+                                <core:Icon id="icoKpi1" src="sap-icon://product" size="1.1rem"
+                                           width="2rem" height="2rem" color="#2b7de9"
+                                           backgroundColor="#ffffff" class="grnKpiIcon"/>
+                                <Text id="valRecvQty" text="{local>/selection/recvQty}" class="grnKpiValue"/>
+                                <Text id="lblKpi1" text="Received Quantity" class="grnKpiLabel"/>
+                            </HBox>
 
-                            <Label id="lblRecvQty" text="Received Quantity"/>
-                            <Input id="inputRecvQty" value="{local>/selection/recvQty}" editable="false"/>
+                            <HBox id="kpiScanQty" alignItems="Center" renderType="Bare" class="grnKpi grnKpiGreen">
+                                <core:Icon id="icoKpi2" src="sap-icon://bar-code" size="1.1rem"
+                                           width="2rem" height="2rem" color="#1e9e57"
+                                           backgroundColor="#ffffff" class="grnKpiIcon"/>
+                                <Text id="valScanQty" text="{local>/selection/scanQty}" class="grnKpiValue"/>
+                                <Text id="lblKpi2" text="Scanned Quantity" class="grnKpiLabel"/>
+                            </HBox>
 
-                            <Label id="lblScanQty" text="Scanned Quantity"/>
-                            <Input id="inputScanQty" value="{local>/selection/scanQty}" editable="false"/>
+                            <HBox id="kpiRecvBat" alignItems="Center" renderType="Bare" class="grnKpi grnKpiOrange">
+                                <core:Icon id="icoKpi3" src="sap-icon://documents" size="1.1rem"
+                                           width="2rem" height="2rem" color="#f08a1c"
+                                           backgroundColor="#ffffff" class="grnKpiIcon"/>
+                                <Text id="valRecvBat" text="{local>/selection/recvBatches}" class="grnKpiValue"/>
+                                <Text id="lblKpi3" text="Received Batches" class="grnKpiLabel"/>
+                            </HBox>
 
-                            <Label id="lblRecvBat" text="Received Batches"/>
-                            <Input id="inputRecvBat" value="{local>/selection/recvBatches}" editable="false"/>
+                            <HBox id="kpiScanBat" alignItems="Center" renderType="Bare" class="grnKpi grnKpiPurple">
+                                <core:Icon id="icoKpi4" src="sap-icon://sys-enter-2" size="1.1rem"
+                                           width="2rem" height="2rem" color="#6b4fd8"
+                                           backgroundColor="#ffffff" class="grnKpiIcon"/>
+                                <Text id="valScanBat" text="{local>/selection/scanBatches}" class="grnKpiValue"/>
+                                <Text id="lblKpi4" text="Scanned Batches" class="grnKpiLabel"/>
+                            </HBox>
+                        </VBox>
 
-                            <Label id="lblScanBat" text="Scanned Batches"/>
-                            <Input id="inputScanBat" value="{local>/selection/scanBatches}" editable="false"/>
+                        <!-- ===== Card 4 : Additional ===== -->
+                        <VBox id="cardAdd" renderType="Bare" class="grnCard">
+                            <HBox id="headAdd" alignItems="Center" class="grnCardHead">
+                                <core:Icon id="icoAdd" src="sap-icon://action-settings"
+                                           size="1.2rem" class="grnCardIcon"/>
+                                <Text id="txtHeadAdd" text="Additional" class="grnCardTitle"/>
+                            </HBox>
 
-                            <!-- ===== Column 4 ===== -->
-                            <core:Title id="titleCol4" text="Additional"/>
+                            <VBox id="fShift" renderType="Bare" class="grnField">
+                                <Label id="lblShift" text="Shift" required="true" labelFor="selectShift"/>
+                                <Select id="selectShift" selectedKey="{local>/selection/shift}" width="100%">
+                                    <core:Item id="shiftItemA" key="A" text="A"/>
+                                    <core:Item id="shiftItemB" key="B" text="B"/>
+                                </Select>
+                            </VBox>
 
-                            <Label id="lblShift" text="Shift" required="true"/>
-                            <Select id="selectShift" selectedKey="{local>/selection/shift}">
-                                <core:Item id="shiftItemA" key="A" text="A"/>
-                                <core:Item id="shiftItemB" key="B" text="B"/>
-                            </Select>
+                            <VBox id="fRemark" renderType="Bare" class="grnField">
+                                <Label id="lblRemark" text="Remark" labelFor="inputRemark"/>
+                                <Input id="inputRemark" value="{local>/selection/remark}"
+                                       maxLength="100" placeholder="Enter remark..."/>
+                            </VBox>
+                        </VBox>
 
-                            <Label id="lblRemark" text="Remark"/>
-                            <Input id="inputRemark" value="{local>/selection/remark}"
-                                   maxLength="100" placeholder="Enter remark..."/>
-
-                        </f:content>
-                    </f:SimpleForm>
+                    </HBox>
                 </content>
             </Panel>
 
-            <!-- ================= SCAN BATCHES ================= -->
-            <Panel id="scanPanel" headerText="Scan Batches" expandable="true" expanded="true"
-                   class="sapUiResponsiveMargin" width="auto">
-                <HBox id="scanBox" alignItems="Center" wrap="Wrap" class="sapUiSmallMarginTop">
-                    <Label id="lblScan" text="Scan Batch:" class="sapUiSmallMarginEnd"
-                           design="Bold" labelFor="batchInput"/>
-                    <Input id="batchInput" placeholder="Enter Batch Number..." width="30rem"
-                           submit=".onAddBatch" class="sapUiSmallMarginEnd"/>
-                    <Button id="btnAdd" text="Add" press=".onAddBatch"
-                            type="Emphasized" icon="sap-icon://add"/>
-                </HBox>
+            <!-- ================= OBD DETAILS (only when Invoice entered) ================= -->
+            <Panel id="obdPanel" visible="{= ${local>/mode} === 'INV' }"
+                   expandable="true" expanded="true" width="auto"
+                   class="sapUiResponsiveMargin grnPanel"
+                   headerText="{= 'Outbound Delivery Details of Invoice ' + ${local>/selection/invoiceNumber} }">
+                <Table id="obdTable" items="{local>/obds}" noDataText="No outbound deliveries.">
+                    <columns>
+                        <Column id="colOSr" width="5rem">
+                            <Text id="txtColOSr" text="Sr. No."/>
+                            <footer><Text id="footOTxt" text="Total Across Invoice OBDs" wrapping="false"/></footer>
+                        </Column>
+                        <Column id="colOObd" width="12rem"><Text id="txtColOObd" text="Outbound Delivery Number"/></Column>
+                        <Column id="colOPo" width="10rem"><Text id="txtColOPo" text="PO Number"/></Column>
+                        <Column id="colOPlant" width="6rem"><Text id="txtColOPlant" text="Plant"/></Column>
+                        <Column id="colORecvQty" width="9rem" hAlign="End">
+                            <Text id="txtColORecvQty" text="Received Quantity"/>
+                            <footer><ObjectNumber id="footORecvQty" number="{local>/selection/recvQty}" state="Success"/></footer>
+                        </Column>
+                        <Column id="colOScanQty" width="9rem" hAlign="End">
+                            <Text id="txtColOScanQty" text="Scanned Quantity"/>
+                            <footer><ObjectNumber id="footOScanQty" number="{local>/selection/scanQty}" state="Success"/></footer>
+                        </Column>
+                        <Column id="colORecvBat" width="8rem" hAlign="End">
+                            <Text id="txtColORecvBat" text="Received Batches"/>
+                            <footer><ObjectNumber id="footORecvBat" number="{local>/selection/recvBatches}" state="Success"/></footer>
+                        </Column>
+                        <Column id="colOScanBat" width="8rem" hAlign="End">
+                            <Text id="txtColOScanBat" text="Scanned Batches"/>
+                            <footer><ObjectNumber id="footOScanBat" number="{local>/selection/scanBatches}" state="Success"/></footer>
+                        </Column>
+                        <Column id="colOStatus" width="8rem"><Text id="txtColOStatus" text="OBD Status"/></Column>
+                    </columns>
+                    <items>
+                        <ColumnListItem id="obdItem">
+                            <cells>
+                                <Text id="cellOSr" text="{local>srNo}"/>
+                                <Text id="cellOObd" text="{local>obd}"/>
+                                <Text id="cellOPo" text="{local>po}"/>
+                                <Text id="cellOPlant" text="{local>plant}"/>
+                                <Text id="cellORecvQty" text="{local>recvQtyText}"/>
+                                <Text id="cellOScanQty" text="{local>scanQtyText}"/>
+                                <Text id="cellORecvBat" text="{local>recvBatches}"/>
+                                <Text id="cellOScanBat" text="{local>scanBatches}"/>
+                                <ObjectStatus id="cellOStatus" text="{local>status}"
+                                    state="{path: 'local>status', formatter: '.formatObdState'}"/>
+                            </cells>
+                        </ColumnListItem>
+                    </items>
+                </Table>
             </Panel>
 
+            <!-- ================= SCAN BATCHES ================= -->
+            <HBox id="scanBox" alignItems="Center" wrap="Wrap" renderType="Bare"
+                  class="sapUiResponsiveMargin grnScanBar">
+                <core:Icon id="icoScan1" src="sap-icon://bar-code" size="1.8rem" class="grnScanIcon"/>
+                <Title id="scanTitle" text="Scan Batches" level="H3" class="grnScanTitle"/>
+                <Label id="lblScan" text="Scan Batch:" design="Bold" labelFor="batchInput"
+                       class="grnScanLabel"/>
+                <Input id="batchInput" placeholder="Enter Batch Number..." width="30rem"
+                       submit=".onAddBatch" class="sapUiSmallMarginEnd"/>
+                <Button id="btnAdd" text="Add" press=".onAddBatch"
+                        type="Emphasized" icon="sap-icon://add"/>
+            </HBox>
+
             <!-- ================= BATCH DETAILS ================= -->
-            <Panel id="batchPanel" headerText="Batch Details" expandable="true" expanded="true"
-                   class="sapUiResponsiveMargin" width="auto">
+            <Panel id="batchPanel" expandable="true" expanded="true"
+                   class="sapUiResponsiveMargin grnPanel" width="auto"
+                   headerText="{= ${local>/mode} === 'INV' ? 'Batch Details (All Batches across Invoice OBDs)' : 'Batch Details' }">
                 <Table id="batchesTable"
                        items="{local>/batches}"
-                       noDataText="Enter an outbound delivery to load its batches."
+                       noDataText="Enter an outbound delivery or invoice to load its batches."
                        sticky="ColumnHeaders,HeaderToolbar"
                        growing="true" growingThreshold="50"
                        mode="MultiSelect">
@@ -139,6 +267,9 @@
 
                     <columns>
                         <Column id="colSr" width="5rem"><Text id="txtColSr" text="Sr. No."/></Column>
+                        <Column id="colObd" width="10rem" visible="{= ${local>/mode} === 'INV' }">
+                            <Text id="txtColObd" text="OBD Number"/>
+                        </Column>
                         <Column id="colBatch" width="10rem"><Text id="txtColBatch" text="Batch"/></Column>
                         <Column id="colMat" width="12rem"><Text id="txtColMat" text="Material"/></Column>
                         <Column id="colDesc" width="18rem"><Text id="txtColDesc" text="Material Description"/></Column>
@@ -156,6 +287,7 @@
                         <ColumnListItem id="batchItem">
                             <cells>
                                 <Text id="cellSr" text="{local>srNo}"/>
+                                <Text id="cellObd" text="{local>obd}"/>
                                 <Text id="cellBatch" text="{local>batch}"/>
                                 <Text id="cellMat" text="{local>material}"/>
                                 <Text id="cellDesc" text="{local>description}"/>
@@ -175,21 +307,21 @@
         <footer>
             <OverflowToolbar id="footerToolbar">
                 <ToolbarSpacer id="footerSpacer"/>
-                <Button id="btnNew" text="New" icon="sap-icon://add-document" press=".onNew"/>
-                <Button id="btnSubmit" text="Submit" type="Accept" icon="sap-icon://accept"
+                <Button id="btnNew" text="New" icon="sap-icon://refresh" press=".onNew"/>
+                <Button id="btnSubmit" text="Submit" type="Emphasized" icon="sap-icon://accept"
                         press=".onSubmit"/>
             </OverflowToolbar>
         </footer>
 
         <dependents>
-            <!-- F4: Outbound Delivery -->
-            <SelectDialog id="obdDialog" title="Outbound Delivery"
+            <!-- F4: Outbound Delivery / Invoice -->
+            <SelectDialog id="refDialog" title="Outbound Delivery / Invoice"
                           items="{ path: '/ZI_GRN_OBD_HDR', templateShareable: false }"
-                          search=".onObdVHSearch" liveChange=".onObdVHSearch"
-                          confirm=".onObdVHConfirm">
-                <StandardListItem id="obdVHItem"
+                          search=".onRefVHSearch" liveChange=".onRefVHSearch"
+                          confirm=".onRefVHConfirm">
+                <StandardListItem id="refVHItem"
                                   title="{DeliveryDocument}"
-                                  description="PO {PurchaseOrder}"
+                                  description="Invoice {BillingDocument} | PO {PurchaseOrder}"
                                   info="{RecvBatches} batches"/>
             </SelectDialog>
 
